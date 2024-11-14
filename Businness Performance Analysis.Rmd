@@ -1,0 +1,300 @@
+---
+title: Business Performance Analysis
+
+output: pdf_document
+---
+# Load necessary libraries
+```{r}
+
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library (scales)
+```
+# Load and inspect the data
+```{r}
+ev_data <- read.csv("C:/Users/swani/Downloads/ev_33.csv")
+head(ev_data)
+rep_data <- read.csv("C:/Users/swani/Downloads/rep_33.csv")
+head(rep_data)
+
+```
+## Data Preposition
+
+```{r}
+
+# Find sum of rows with null values in EV Data
+rows_with_null_ev <- sum(!complete.cases(ev_data))
+
+# Find sum of rows with null values in Rep Data
+rows_with_null_rep <- sum(!complete.cases(rep_data))
+
+# Display results
+cat("Number of rows with null values in EV Data:", rows_with_null_ev, "\n")
+cat("Number of rows with null values in Rep Data:", rows_with_null_rep, "\n")
+
+
+```
+
+
+```{r}
+# Delete rows with null values in EV Data
+ev_data<- na.omit(ev_data)
+
+# Delete rows with null values in Rep Data
+rep_data <- na.omit(rep_data)
+
+```
+
+
+```{r}
+
+# Find sum of rows with null values in EV Data
+rows_with_null_ev_clean <- sum(!complete.cases(ev_data))
+
+# Find sum of rows with null values in Rep Data
+rows_with_null_rep_clean <- sum(!complete.cases(rep_data))
+
+# Display results
+cat("Number of rows with null values in EV Data:", rows_with_null_ev_clean, "\n")
+cat("Number of rows with null values in Rep Data:", rows_with_null_rep_clean, "\n")
+
+
+```
+```{r}
+# Check for missing values
+summary(ev_data)
+summary(rep_data)
+
+# Merge datasets
+merged_data <- merge(ev_data, rep_data, by = "rep_id")
+
+head(merged_data)
+dim(merged_data)
+
+```
+
+```{r}
+# Delete rows with null values in EV Data
+merged_data<- na.omit(merged_data)
+sum(is.na(merged_data))
+```
+
+## Exploratory Data Analyis
+```{r}
+# Explore structure and summary statistics
+str(merged_data)
+summary(merged_data)
+
+# Descriptive statistics
+merged_data %>%
+  group_by(period) %>%
+  summarise(avg_purchase = mean(purchase) )
+
+# Convert 'period' to a factor
+merged_data$period <- as.factor(merged_data$period)
+
+```
+## Sales Trend Over Time 
+```{r}
+ggplot(merged_data, aes(x = period, y = purchase, color = product)) +
+  geom_point() +
+  facet_wrap(~product, scales = "free_y") +
+  labs(title = "Purchase Trend Over Time")
+
+
+
+```
+## Seasonal Trend Over Time
+
+```{r}
+avg_sale_data <- merged_data %>%
+  group_by(period, product) %>%
+  summarise(avg_sale = mean(purchase, na.rm = TRUE))
+
+avg_sale_data
+# Data visualization examples with facets based on average sale
+ggplot(avg_sale_data, aes(x = period, y = avg_sale, color = product)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(~product, scales = "free_y") +
+  labs(title = "Average Purchase Trend Over Time by Product")
+
+```
+
+```{r}
+cleaned_data <- merged_data %>%
+  filter(!is.na(purchase)) %>%
+  mutate(total_spend = commissions + marketing)
+head(cleaned_data)
+```
+## Purchase Distribution
+
+
+
+
+```{r}
+ggplot(merged_data, aes(x = product, y = purchase, fill = product)) +
+  geom_boxplot() +
+  labs(title = "Purchase Distribution by Product")
+
+```
+
+## Commission vs. Purchase
+```{r}
+ggplot(merged_data, aes(x = commissions, y = purchase, color = product)) +
+  geom_point() + facet_wrap(~product, scales = "free_y")+
+  labs(title = "Purchase vs. Commission")
+
+```
+
+## Promotions Analysis
+```{r}
+
+
+# Data visualization with labeled percentage for "yes" and "no" and increased size
+ggplot(merged_data, aes(x = product, fill = promotions)) +
+  geom_bar() +
+  geom_text(data = subset(merged_data, promotions %in% c("yes", "no")),
+            stat = "count",
+            aes(label = paste0(round((..count..) / sum(..count..) * 100, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            size = 3) +  # Adjust size as needed
+  labs(title = "Purchase with Promotions Over Time by Product") +
+  theme_minimal()  # You can change the theme as needed
+
+# Save the plot with increased size (adjust width and height as needed)
+ggsave("output_plot.png", width = 10, height = 6)
+
+
+```
+
+## Sales Rep Training Status
+```{r}
+rep_data <- rep_data %>%
+  mutate(training = ifelse(training == 'nyes', 'yes', training))
+
+ggplot(rep_data, aes(x = training)) +
+  geom_bar(fill = "skyblue", alpha = 0.7) +
+  labs(title = "Distribution of Rep Training", x = "Training Status", y = "Count") +
+  theme_minimal()+
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5)
+
+```
+
+## Campaign Analysis
+```{r}
+library(scales)
+
+ggplot(merged_data, aes(x = campaign)) +
+  geom_bar(fill = "red", alpha = 0.7) +
+  labs(title = "Distribution of Campaigns", x = "Campaign", y = "Count") +
+  theme_minimal()
+
+
+
+
+ggplot(cleaned_data, aes(x = campaign, y = total_spend, fill = campaign)) +
+  geom_bar(stat = "identity", alpha = 0.7) +
+  labs(title = "Marketing Spending by Campaign", x = "Campaign", y = "Mark") +
+  scale_y_continuous(labels = scales::comma_format())  # This line ensures regular y-axis labels
+
+
+  
+
+
+```
+
+```{r}
+
+ggplot(merged_data, aes(x = campaign, y = purchase, fill = campaign)) +
+  geom_bar(stat = "summary", fun = "sum", position = "dodge", alpha = 0.7) +
+  geom_text(stat = "summary", aes(label = round(..y.., 2)), position = position_dodge(width = 0.9), vjust = -0.5) +
+  labs(title = "Average Purchase by Campaign", x = "Campaign", y = "Average Purchase") +
+   scale_y_continuous(labels = scales::comma_format())  
+  theme_minimal()
+
+
+```
+
+## Buyer Analysis
+```{r}
+
+pie_data <- merged_data %>%
+  group_by(buyer) %>%
+  summarise(total_purchase = sum(purchase))
+
+# Calculate percentage
+pie_data$percentage <- (pie_data$total_purchase / sum(pie_data$total_purchase)) * 100
+
+# Create a pie chart with labels
+ggplot(pie_data, aes(x = "", y = total_purchase, fill = buyer, label = paste0(round(percentage, 1), "%"))) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y") +
+  labs(title = "Distribution of Total Purchase by Buyer Status") +
+  scale_y_discrete(labels = comma) +
+  theme_minimal() +
+  geom_text(position = position_stack(vjust = 0.2))
+
+
+
+
+
+```
+## Profit Analysi
+
+```{r}
+
+profit_data <- merged_data %>%
+  group_by(product) %>%
+  summarise(total_profit = sum(purchase - marketing - commissions))
+
+ggplot(profit_data, aes(x = product, y = total_profit, fill = product)) +
+  geom_bar(stat = "identity", alpha = 0.7) +
+  labs(title = "Total Profit by Product", x = "Product", y = "Total Profit") +
+   scale_y_continuous(labels = scales::comma_format())  
+ 
+
+
+```
+
+
+
+  
+`
+## Representative Analysis
+
+```{r}
+ ggplot(rep_data, aes(x = jobtype, fill = gender)) +
+      geom_bar() +
+      geom_text(
+        stat = "count",
+        aes(label = percent(..count.. / sum(..count..))),
+        position = position_stack(vjust = 0.5),
+        size = 3
+      ) +
+      labs(title = "Distribution of Representatives by Job Type and Gender", x = "Job Type", y = "Count") +
+      theme_minimal()
+
+ggplot(rep_data, aes(x = qualification, fill = qualification)) +
+  geom_bar() +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5, size = 3) +
+  labs(title = "Distribution of Reps based on Qualification",
+       x = "Qualification",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+```{r}
+# Hypothesis Testing for H1
+cor_test_result_marketing <- cor.test(as.numeric(merged_data$marketing),as.numeric(merged_data$purchase))
+print(cor_test_result_marketing)
+```
+\newpage
+```{r}
+# Hypothesis Testing for H2
+cor_test_result_commission <- cor.test(as.numeric(merged_data$commissions), as.numeric(merged_data$purchase))
+print(cor_test_result_commission)
+
+```
